@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html"; charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100&display=swap" rel="stylesheet">
+
+    <title>{% block title %} Главная {% endblock %} - Office</title>
+</head>
+<body>
+
+
+<div class="container">
+    <form action="{% url 'search_address' %}" method="GET">
+        <input name = "address" type="text" placeholder="Адрес офиса...">
+    </form>
+    <div class="content">
+        <br>
+    <a href="{% url 'index' %}">Главная</a>
+    {% block content %}
+
+    {% endblock %}
+    </div>
+</div>
+</body>
+</html>

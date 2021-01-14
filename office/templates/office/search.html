@@ -1,0 +1,13 @@
+{% extends 'layout/base.html' %}
+
+{% block content %}
+<h1>Результаты поиска по запросу: {{ curr_address }}</h1>
+<hr>
+{% for office in offices %}
+<p>Адрес офиса: <a href="{% url 'office_detail' office.id %}">{{office.address}}</a></p>
+
+<p>Свободно мест: {{office.count_of_free_places}}</p>
+<p>Занято мест: {{office.count_of_occupied_places}}</p>
+<br>
+{% endfor %}
+{% endblock %}

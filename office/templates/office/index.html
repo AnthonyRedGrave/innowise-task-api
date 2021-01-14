@@ -1,0 +1,10 @@
+{% extends 'layout/base.html' %}
+
+{% block content %}
+
+{% for office in offices %}
+<p>Адрес офиса: <a href="{% url 'office_detail' office.id %}">{{office.address}}</a></p>
+<p>Всего кабинетов: {{office.room.count}}</p>
+<br>
+{% endfor %}
+{% endblock %}

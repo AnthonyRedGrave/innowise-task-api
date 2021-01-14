@@ -1,0 +1,19 @@
+{% extends 'layout/base.html' %}
+
+{% block content %}
+
+
+<h1>Адрес офиса: {{office.address}}</h1>
+<hr>
+<br>
+{% for room in rooms %}
+<h2><a href="{% url 'room_detail' office.id room.id %}">Кабинет №{{room.number}}</a></h2>
+<p>Всего мест: {{room.count_of_places}}</p>
+<p>Занято мест: {{room.count_of_occupied_places}}</p>
+<p>Свободно мест: {{room.count_of_free_places}}</p>
+
+<hr>
+{% endfor %}
+<br>
+
+{% endblock %}

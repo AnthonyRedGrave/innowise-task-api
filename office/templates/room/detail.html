@@ -1,0 +1,32 @@
+{% extends 'layout/base.html' %}
+
+{% block content %}
+
+
+<h1>Адрес офиса: {{office.address}}</h1>
+<h1>Кабинет №{{ room.number }}</h1>
+
+<p>Всего мест: {{room.count_of_places}}</p>
+<p>Занято мест: {{room.count_of_occupied_places}}</p>
+<p>Свободно мест: {{room.count_of_free_places}}</p>
+<hr>
+{% for place in places%}
+    <p>{{place.view}}</p>
+
+    {% if place.occupied %}
+        <p>Занято пользователем: {{place.client}}</p>
+        <p>Дата: {{place.data}}</p>
+        <p>Занято ли: {{place.occupied}}</p>
+    {% endif %}
+
+    {% if place.client != request.user and not place.occupied %}
+    <p><a href="{% url 'place_occupation' office.id room.id place.id %}">Занять место</a></p>
+    {% else %}
+    <p><a href="{% url 'place_release' office.id room.id place.id %}" type="submit">Освободить место</a></p>
+<!--    <input type = "submit" value="Освободить место">-->
+    {% endif %}
+    <br>
+{% endfor %}
+<br>
+
+{% endblock %}
