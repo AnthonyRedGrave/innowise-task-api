@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, ValidationError
 import datetime
 from django.utils import timezone
 
@@ -30,6 +30,11 @@ class Room(models.Model):
     def save(self, *args, **kwargs):
         if self.count_of_free_places == None and self.count_of_occupied_places == None:
             self.count_of_free_places, self.count_of_occupied_places = self.count_of_places, 0
+            super().save(*args, **kwargs)
+            for _ in range(self.count_of_places):
+                curr_room = Room.objects.get(number = self.number, office = self.office)
+                place = Place(room = curr_room)
+                place.save()
         super().save(*args, **kwargs)
 
     def reset_places(self, *args, **kwargs):
@@ -48,49 +53,55 @@ class Room(models.Model):
 class Place(models.Model):
     view = models.CharField("Место", max_length=100, editable=False, null=True, blank=True)
     client = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    data = models.DateField("Дата для бронирования", auto_now = False, default = timezone.datetime.now().date() + datetime.timedelta(days=1), null=True, blank=True)
+    first_date = models.DateField("Первая дата", null=True, blank=True, editable=False)
+    data = models.DateField("Зарезервированная дата", auto_now = False, default = datetime.date.today() + datetime.timedelta(days=1), null=True, blank=True)
 
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='place', null=True, blank=True)
 
-    occupied = models.BooleanField('Занято ли', default=False, )
+    occupied = models.BooleanField('Занято ли', default=False)
 
     def release_place(self, *args, **kwargs):
-        if timezone.datetime.now().date() > self.data:
-            self.occupied = False
-        elif timezone.datetime.now().date() < self.data:
+        if self.data:
+            now_date = datetime.date.today()
+            return now_date > self.data
+        else:
             return False
-        self.save(*args, **kwargs)
-        # else:
-        #     return "{} освободите место!".format(self.client.username)
+
+
 
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        if self.occupied and self.client and self.data: #если есть галочка и все данные заполнены
-            print("заполнено верно")
-            self.view = "Место №{} (занято)".format(self.id)
-            if self.room.count_of_places > self.room. count_of_occupied_places and 0 < self.room.count_of_free_places:
-                Room.objects.filter(number=self.room.number).update(count_of_occupied_places = models.F("count_of_occupied_places")+1)
-                Room.objects.filter(number=self.room.number).update(count_of_free_places = models.F("count_of_free_places")-1)
-            self.release_place()
-        elif self.occupied == False: # если нет галочки
-            print("галочка не поставлена")
-            print(self.room.count_of_places.field.validators)
-            self.view = "Место №{} (свободно)".format(self.id)
-            self.client = None
-            self.data = None
-        elif self.occupied and not self.data and not self.client: #если есть галочка и ничего не заполнено
-            print("поставил галку но ничего не заполнил")
-            return
+        if self.release_place():
+            print("неправильная дата")
+            self.occupied = False
+            self.save()
+        else:
+            if self.occupied and self.client and self.data: #если есть галочка и все данные заполнены
+                print("заполнено верно")
+                self.view = "Место №{} (занято)".format(self.id)
+                self.first_date = datetime.date.today()
+                if self.room.count_of_places > self.room.count_of_occupied_places and 0 < self.room.count_of_free_places:
+                    print("попал")
+                    Room.objects.filter(number=self.room.number, office = self.room.office).update(count_of_occupied_places = models.F("count_of_occupied_places")+1)
+                    Room.objects.filter(number=self.room.number, office = self.room.office).update(count_of_free_places = models.F("count_of_free_places")-1)
 
-        super().save(*args, **kwargs)
+            elif self.occupied == False: # если нет галочки
+                print("галочка не поставлена")
+                self.view = "Место №{} (свободно)".format(self.id)
+                self.client = None
+                self.data = None
+                self.first_date = None
+                self.client = None
+
+            super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):#не должны удаляться экземпляры модели
         if self.room:
             if self.room.count_of_places > self.room.count_of_free_places and 0 < self.room.count_of_occupied_places:
-                Room.objects.filter(number=self.room.number).update(
+                Room.objects.filter(number=self.room.number, office = self.room.office).update(
                     count_of_occupied_places=models.F("count_of_occupied_places") - 1)
-                Room.objects.filter(number=self.room.number).update(
+                Room.objects.filter(number=self.room.number, office = self.room.office).update(
                     count_of_free_places=models.F("count_of_free_places") + 1)
             self.occupied = False
             self.save()
@@ -98,10 +109,11 @@ class Place(models.Model):
             super().delete(*args, **kwargs)
 
     def reset_fields(self, *args, **kwargs):
+        self.first_date = None
         self.occupied = False
         self.data = None
         self.client = None
-        self.view = "Место №{} свободно".format(self.id)
+        self.view = "Место №{} (свободно)".format(self.id)
         super().save(*args, **kwargs)
 
     def __str__(self):

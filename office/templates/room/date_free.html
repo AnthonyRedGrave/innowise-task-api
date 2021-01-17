@@ -1,10 +1,33 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends 'layout/base.html' %}
+
+{% block content %}
+<h1>{{ curr_date }}</h1>
+
+{% if occupied_places %}
+<h2>Занятые места</h2>
+<h2>На данный день занято мест: {{ count_occupied_places }}</h2>
+{% for place in occupied_places %}
+<p>{{place.view}}</p>
+
+    {% if place.occupied %}
+        <p>Занято пользователем: {{place.client}}</p>
+        <p>Забронированно до: {{place.data}}</p>
+    {% endif %}
+
+{% endfor %}
+{% endif %}
+
+<hr>
+<hr>
+
+{% if free_places %}
+
+<h2>Свободные места</h2>
+<h2>В этот день есть столько свободных мест: {{ count_free_places }}</h2>
+{% for place in free_places %}
+<p>{{place.view}}</p>
+{% endfor %}
+
+{% endif %}
+
+{% endblock %}

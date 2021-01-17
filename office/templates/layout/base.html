@@ -17,6 +17,15 @@
     <div class="content">
         <br>
     <a href="{% url 'index' %}">Главная</a>
+    <a href="{% url 'occupied_places' %}">Забронированные места</a>
+    <a href="{% url 'free_places' %}">Свободные места</a>
+    {% if request.user.is_authenticated %}
+    <p>Вы вошли как {{request.user}}</p>
+    <a href="{% url 'logout' %}">Выйти</a>
+    {% else %}
+    <a href="{% url 'registration' %}">Зарегестрироваться</a>
+    <a href="{% url 'login' %}">Войти</a>
+    {% endif %}
     {% block content %}
 
     {% endblock %}

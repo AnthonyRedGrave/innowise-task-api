@@ -1,10 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends 'layout/base.html' %}
+
+{% block content %}
+{% for office in offices %}
+<h2>{{office.address}}</h2>
+{% for room in office.room.all %}
+<h3><a href="{% url 'room_detail' room.office.id room.id %}">{{room}}</a></h3>
+{% for place in room.place.all %}
+{% if not place.occupied %}
+<p>{{place.view}}</p>
+
+{% if place.client != request.user and not place.occupied and request.user.is_authenticated %}
+    <p><a href="{% url 'place_occupation' place.room.office.id place.room.id place.id %}">Занять место</a></p>
+{% endif %}
+
+{% endif %}
+{% endfor %}
+<hr>
+{% endfor %}
+<br>
+{% endfor %}
+
+{% endblock %}

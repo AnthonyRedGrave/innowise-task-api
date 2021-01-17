@@ -15,15 +15,13 @@
 
     {% if place.occupied %}
         <p>Занято пользователем: {{place.client}}</p>
-        <p>Дата: {{place.data}}</p>
-        <p>Занято ли: {{place.occupied}}</p>
+        <p>Зарезервированно до: {{place.data}}</p>
     {% endif %}
 
-    {% if place.client != request.user and not place.occupied %}
+    {% if place.client != request.user and not place.occupied and request.user.is_authenticated %}
     <p><a href="{% url 'place_occupation' office.id room.id place.id %}">Занять место</a></p>
-    {% else %}
+    {% elif place.client == request.user %}
     <p><a href="{% url 'place_release' office.id room.id place.id %}" type="submit">Освободить место</a></p>
-<!--    <input type = "submit" value="Освободить место">-->
     {% endif %}
     <br>
 {% endfor %}

@@ -20,7 +20,8 @@ def delete_queryset(self, request, queryset):
         ob.delete()
 
 class PlaceAdmin(admin.ModelAdmin):
-    list_display = ['view', 'client', 'data', 'room']
+    list_display = ['view', 'client', 'first_date', 'data', 'room']
+    readonly_fields = ['first_date']
     actions = [delete_queryset]
 
 class RoomAdmin(admin.ModelAdmin):

@@ -1,10 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends 'layout/base.html' %}
+
+{% block content %}
+{% for place in places %}
+<p>{{place.view}}</p>
+<p><a href="{% url 'room_detail' place.room.office.id place.room.id %}">{{place.room}}</a></p>
+
+{% if place.occupied %}
+        <p>Занято пользователем: {{place.client}}</p>
+        <p>Забронированно до: {{place.data}}</p>
+    {% endif %}
+{% if place.client != request.user and not place.occupied and request.user.is_authenticated %}
+    <p><a href="{% url 'place_occupation' place.room.office.id place.room.id place.id %}">Занять место</a></p>
+    {% elif place.client == request.user %}
+    <p><a href="{% url 'place_release' place.room.office.id place.room.id place.id %}" type="submit">Освободить место</a></p>
+    {% endif %}
+<hr>
+{% endfor %}
+{% endblock %}
