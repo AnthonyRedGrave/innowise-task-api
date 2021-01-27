@@ -1,6 +1,8 @@
 {% extends 'layout/base.html' %}
 
 {% block content %}
+<hr>
+{% if places %}
 {% for place in places %}
 <p>{{place.view}}</p>
 <p><a href="{% url 'room_detail' place.room.office.id place.room.id %}">{{place.room}}</a></p>
@@ -16,4 +18,7 @@
     {% endif %}
 <hr>
 {% endfor %}
+{% else %}
+<h2>Таких мест нет!</h2>
+{% endif %}
 {% endblock %}

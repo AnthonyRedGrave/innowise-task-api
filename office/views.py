@@ -1,14 +1,19 @@
 from django.shortcuts import render
-from .models import *
 from django.views import generic
-from django.db.models import Q
+from rest_framework.response import Response
 from .forms import *
+from rest_framework import viewsets, status, generics
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import *
 from django.shortcuts import reverse, redirect
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
+from .serializers import *
+from .utils import *
+
 
 def index(request):
     offices = Office.objects.all()
-
     context = {'offices':offices}
     return render(request, 'office/index.html', context)
 
@@ -21,6 +26,7 @@ def get_offices(request):
 def office_detail(request, pk):
     office = Office.objects.get(id = pk)
     rooms = Room.objects.filter(office = office)
+
     context = {'office': office, 'rooms': rooms}
     return render(request, 'office/detail.html', context)
 
@@ -28,17 +34,8 @@ def room_detail(request, pk, id):
     office = Office.objects.get(id = pk)
     room = Room.objects.get(id = id)
     places = Place.objects.filter(room = room)
-    correct_places = []
-    for place in places:
-        if place.release_place():
-            print("было освобождено {}".format(place))
-            place.delete()
-            correct_places.append(place)
-        else:
-            print("Все нормально")
-            correct_places.append(place)
-
-    context = {'room': room, 'places': correct_places, 'office': office}
+    places = check_date(places)
+    context = {'room': room, 'places': places, 'office': office}
     return render(request, 'room/detail.html', context)
 
 
@@ -79,7 +76,6 @@ class OccupyPlace(generic.View):
 
             else:
                 print(form.is_valid())
-                #print(form.cleaned_data)
                 print(form.is_bound)
                 print(form.errors)
             return redirect(reverse('room_detail', kwargs={'pk': pk, 'id': id}))
@@ -102,44 +98,22 @@ class ReleasePlace(generic.View):
 
 def get_free_places(request):
     offices = Office.objects.all()
-
-    rooms = Room.objects.all()
-    free_places = Place.objects.filter(occupied = False)
     context = {'offices': offices}
     return render(request, 'room/free_places.html', context)
 
 def get_occupied_places(request):
     occupied_places = Place.objects.filter(occupied = True)
-    correct_places = []
-    for place in occupied_places:
-        if place.release_place():
-            print("было освобождено {}".format(place))
-            place.delete()
-            correct_places.append(place)
-        else:
-            print("Все нормально")
-            correct_places.append(place)
-    context = {'places': correct_places}
+    occupied_places = check_date(occupied_places)
+    context = {'places': occupied_places}
     return render(request, 'room/occupied_places.html', context)
 
 def get_occupied_places_on_date(request, year, month, day):
     curr_date = datetime.date(year, month, day)
     places = Place.objects.filter(data__gte = curr_date, first_date__lte = curr_date, occupied = True)
     free_places = Place.objects.filter(occupied = False)
-    occupied_places = []
-    for place in places:
-        if place.release_place():
-            print("было освобождено {}".format(place))
-            place.delete()
-            occupied_places.append(place)
-        else:
-            print("Все нормально")
-            occupied_places.append(place)
-
-
-    print(curr_date)
-    context = {'occupied_places': occupied_places, 'free_places':free_places, 'curr_date': curr_date,
-               'count_occupied_places': len(occupied_places),
+    places = check_date(places)
+    context = {'occupied_places': places, 'free_places':free_places, 'curr_date': curr_date,
+               'count_occupied_places': len(places),
                'count_free_places': len(free_places)}
     return render(request, 'room/date_free.html', context)
 
@@ -184,3 +158,233 @@ class RegisterView(generic.View):
 
         context = {'register_form': register_form}
         return render(request, 'auth/registration.html', context)
+
+# -----------------------------REST API OFFICE---------------------------------------------
+
+
+class OfficeListApiView(generics.ListCreateAPIView): #Список всех офисов
+    serializer_class = OfficeSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Office.objects.all()
+
+
+class OfficeDetailApiView(generics.RetrieveUpdateDestroyAPIView): #Информация о офисе
+    serializer_class = OfficeSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Office.objects.all()
+
+
+class OfficeRoomListApi(generics.ListCreateAPIView): #Список всех кабинетов в отдельном офисе
+    serializer_class = RoomSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Room.objects.filter(office__id = self.kwargs['pk'])
+
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        for room in qs:
+            room.place.all = check_date(room.place.all())
+            count = Place.objects.filter(room=room, room__office=room.office).count()
+            count_of_free_places = Place.objects.filter(room=room, room__office=room.office, occupied=False).count()
+            count_of_occupied_places = Place.objects.filter(room=room, room__office=room.office, occupied=True).count()
+            Room.objects.filter(id=room.id).update(count_of_places=count, count_of_free_places=count_of_free_places,
+                                                   count_of_occupied_places=count_of_occupied_places)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = RoomSerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status = status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+
+class RoomListApiView(generics.ListCreateAPIView): # Список всех кабинетов
+    serializer_class = RoomSerializer
+    queryset = Room.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        for room in qs:
+            room.place.all = check_date(room.place.all())
+            count = Place.objects.filter(room=room, room__office=room.office).count()
+            count_of_free_places = Place.objects.filter(room=room, room__office=room.office, occupied=False).count()
+            count_of_occupied_places = Place.objects.filter(room=room, room__office=room.office, occupied=True).count()
+            Room.objects.filter(id=room.id).update(count_of_places=count, count_of_free_places=count_of_free_places,
+                                                   count_of_occupied_places=count_of_occupied_places)
+        serializer = self.get_serializer(qs, many = True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = RoomSerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status = status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+
+class RoomDetailApiView(generics.RetrieveUpdateDestroyAPIView): # Информация об отдельном кабинете
+    serializer_class = RoomSerializer
+    queryset = Room.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, format = None):
+        room = self.get_object()
+        room.place.all = check_date(room.place.all())
+        count = Place.objects.filter(room=room, room__office=room.office).count()
+        count_of_free_places = Place.objects.filter(room=room, room__office=room.office, occupied=False).count()
+        count_of_occupied_places = Place.objects.filter(room=room, room__office=room.office, occupied=True).count()
+        room.count_of_places=count
+        room.count_of_free_places=count_of_free_places
+        room.count_of_occupied_places=count_of_occupied_places
+        serializer = RoomSerializer(room)
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        room = self.get_object()
+
+        serializer = RoomSerializer(room, request.data)
+        if serializer.is_valid():
+            serializer.update(room, request.data)
+            return Response(serializer.data)
+        return Response(serializer.errors)
+
+
+class RoomPlaceApiView(generics.ListCreateAPIView): # Список всех мест отдельного кабинета
+    serializer_class = PlaceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Place.objects.filter(room__id = self.kwargs['pk'])
+
+    def list(self, request, *args, **kwargs):
+        qs = check_date(self.get_queryset())
+        serializer = PlaceSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = PlaceSerializer(data = request.data)
+        print(request.data['room'])
+
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+
+class PlaceListView(generics.ListCreateAPIView): # Список всех мест
+    serializer_class = PlaceSerializer
+    queryset = Place.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request, *args, **kwargs):
+        qs = check_date(self.get_queryset())
+        serializer = PlaceSerializer(qs, many = True)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = PlaceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+
+class PlaceDetailView(generics.RetrieveUpdateDestroyAPIView): # Информация об отдельном месте
+    serializer_class = PlaceSerializer
+    queryset = Place.objects.all()
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, format = None):
+        place = self.get_object()
+        if place.release_place():
+            place.reset_fields()
+        serializer = PlaceSerializer(place)
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        place = self.get_object()
+        if place.client == request.user:#если клиент - это пользователь
+            serializer = PlaceSerializer(place, data = request.data)
+            if serializer.is_valid():
+                serializer.update(place, request.data)
+                return Response(serializer.data, status = status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        elif place.client == None:
+            for p in Place.objects.filter(client = request.user).exclude(id = place.id): #если пользователь сидит на каком-то месте
+                p.reset_fields()
+            serializer = PlaceSerializer(place, data = request.data)
+            if serializer.is_valid():
+                place.client = request.user
+                serializer.update(place, request.data)
+                return Response(serializer.data, status = status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        elif place.client != request.user or request.user == None:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, *args, **kwargs):
+        place = self.get_object()
+        place.delete()
+        return Response(status = status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def api_user_list(request):
+    if request.method == 'GET':
+        clients = User.objects.all()
+        serializer = UserSerializer(clients, many=True)
+        return Response(serializer.data)
+
+
+class PlaceListOccupiedApiView(generics.ListCreateAPIView):
+    serializer_class = PlaceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Place.objects.filter(occupied = True)
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = PlaceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+
+class PlaceListFreeApiView(generics.ListCreateAPIView):
+    serializer_class = PlaceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Place.objects.filter(occupied=False)
+
+    def create(self, request, *args, **kwargs):
+        print("create")
+        serializer = PlaceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.create(request.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_previous_place_list(request, client):
+    if request.method == 'GET':
+        user = User.objects.get(username = client)
+        queryset = UsersPreviousPlace.objects.filter(client = user)
+        serializer = UserPreviousPlaceSerializer(queryset, many = True)
+        return Response(serializer.data)
+
+
+

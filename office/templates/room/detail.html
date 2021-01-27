@@ -21,6 +21,7 @@
     {% if place.client != request.user and not place.occupied and request.user.is_authenticated %}
     <p><a href="{% url 'place_occupation' office.id room.id place.id %}">Занять место</a></p>
     {% elif place.client == request.user %}
+    <p><a href="{% url 'place_occupation' office.id room.id place.id %}">Редактировать</a></p>
     <p><a href="{% url 'place_release' office.id room.id place.id %}" type="submit">Освободить место</a></p>
     {% endif %}
     <br>

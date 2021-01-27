@@ -8,13 +8,14 @@
 <h2>На данный день занято мест: {{ count_occupied_places }}</h2>
 {% for place in occupied_places %}
 <p>{{place.view}}</p>
-
     {% if place.occupied %}
         <p>Занято пользователем: {{place.client}}</p>
         <p>Забронированно до: {{place.data}}</p>
     {% endif %}
 
 {% endfor %}
+{% else %}
+<h2>На данный день нет занятых мест!</h2>
 {% endif %}
 
 <hr>
@@ -28,6 +29,8 @@
 <p>{{place.view}}</p>
 {% endfor %}
 
+{% else %}
+<h2>На данный день нет свободных мест!</h2>
 {% endif %}
 
 {% endblock %}
